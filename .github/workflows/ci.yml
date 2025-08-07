@@ -68,11 +68,11 @@ jobs:
         if: steps.cache.outputs.cache-hit != 'true'
         run: |
           if [ "${{ matrix.extras }}" = "" ]; then
-            poetry install --no-root --with dev
+            poetry install --with dev
           else
-            poetry install --no-root --with dev,${{ matrix.extras }}
+            poetry install --with dev,${{ matrix.extras }}
           fi
-          
+
       - name: Run tests with pytest
         run: poetry run pytest --cov=cacheio --cov-report=xml
 
@@ -88,32 +88,32 @@ jobs:
     needs: test
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && !contains(github.event.head_commit.message, 'chore(release):')
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      
+
       - name: Set up Python 3.10
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-          
+
       - name: Install Poetry
         uses: abatilo/actions-poetry@v3
         with:
           poetry-version: '1.8.2'
-      
+
       - name: Set up cache for Poetry virtual environment
         uses: actions/cache@v4
         id: cache
         with:
           path: .venv
           key: ${{ runner.os }}-${{ hashFiles('**/poetry.lock') }}
-          
+
       - name: Install dependencies
         if: steps.cache.outputs.cache-hit != 'true'
-        run: poetry install --no-root
-      
+        run: poetry install
+
       - name: Publish to PyPI
         env:
           POETRY_PYPI_TOKEN_PYPI: ${{ secrets.PYPI_TOKEN }}
