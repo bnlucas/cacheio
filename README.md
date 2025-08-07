@@ -43,7 +43,7 @@ To install the library with specific backends, use the optional dependency group
 * **Full Installation:** Use the `full` group to install both synchronous and asynchronous backends.
     ```bash
     pip install "cacheio[full]"
-```
+    ```
 
 ---
 
