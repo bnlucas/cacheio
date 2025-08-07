@@ -51,16 +51,16 @@ To install the library with specific backends, use the optional dependency group
 
 ### Synchronous Caching
 
-Use `cacheio.Cache` to easily get a synchronous cache instance. If `cachelib` is installed, it'll automatically provide a `SimpleCache` instance.
+Use `CacheFactory` to get a synchronous cache adapter. If `cachelib` is installed, this will provide an `Adapter` instance.
 
 ```python
-from cacheio import Cache
+from cacheio.sync import CacheFactory
 
-# Get a simple in-memory cache instance
-my_cache = Cache.get()
+# Get a simple in-memory cache adapter
+my_cache = CacheFactory.memory_cache()
 
 # Use the cache
-my_cache.set("my_key", "my_value", timeout=300)
+my_cache.set("my_key", "my_value", ttl=300)
 value = my_cache.get("my_key")
 
 print(f"Retrieved value: {value}")
@@ -68,15 +68,15 @@ print(f"Retrieved value: {value}")
 
 ### Asynchronous Caching
 
-Use `cacheio.AsyncCache` for a clean asynchronous interface. If `aiocache` is installed, this will provide an `aiocache` instance.
+Use `CacheFactory` to get a clean asynchronous adapter. If `aiocache` is installed, this will provide an `AsyncAdapter` instance.
 
 ```python
 import asyncio
-from cacheio import AsyncCache
+from cacheio.async_ import CacheFactory
 
 async def main():
-    # Get an asynchronous cache instance
-    my_async_cache = AsyncCache.get()
+    # Get an asynchronous cache adapter
+    my_async_cache = CacheFactory.async_memory_cache()
 
     # Use the cache asynchronously
     await my_async_cache.set("my_async_key", "my_async_value", ttl=300)
@@ -86,6 +86,107 @@ async def main():
 
 if __name__ == "__main__":
     # Ensure you have a running event loop
+    asyncio.run(main())
+```
+
+---
+
+## Usage Examples
+
+### 1. Synchronous Caching Example
+
+This example demonstrates how to use the **`cached`** decorator for a synchronous method. We define a class that inherits from `Cacheable`, which automatically sets up a `cachelib`-based in-memory cache.
+
+* **Key Function (`key_fn`)**: The `key_fn` is a crucial part of the decorator. It defines how a unique cache key is generated from the method's arguments.
+* **Decorator**: The `@cached` decorator handles the rest, checking the cache for the key, calling the `fetch_user` method if the key isn't found, and storing the result.
+
+```python
+import time
+from cacheio.sync import cached, Cacheable
+
+# Define the class that uses caching.
+# It inherits from `Cacheable` to get a default in-memory cache.
+class UserService(Cacheable):
+    
+    # The key function for our cache.
+    # It generates a unique string from the method's arguments.
+    def _user_cache_key(self, user_id: int, request_id: str) -> str:
+        return f"user:{user_id}:{request_id}"
+
+    # The cached decorator, which uses the key function and a 60-second TTL.
+    @cached(key_fn=_user_cache_key, ttl=60)
+    def fetch_user(self, user_id: int, request_id: str) -> dict:
+        """Simulates a slow, expensive database call."""
+        print(f"Fetching user {user_id} from database...")
+        time.sleep(2)  # Simulate a 2-second network delay
+        return {"id": user_id, "name": f"User_{user_id}", "request": request_id}
+
+# --- Usage ---
+user_service = UserService()
+
+# First call: The method runs and its result is cached.
+print("First call:")
+user_1 = user_service.fetch_user(user_id=1, request_id="req-1")
+print(f"Result: {user_1}\n")
+
+# Second call (with same arguments): The cached result is returned instantly.
+print("Second call (should be instant):")
+user_2 = user_service.fetch_user(user_id=1, request_id="req-1")
+print(f"Result: {user_2}\n")
+
+# Third call (with different arguments): The method runs again and the new result is cached.
+print("Third call (with different request_id):")
+user_3 = user_service.fetch_user(user_id=1, request_id="req-2")
+print(f"Result: {user_3}")
+```
+
+### 2. Asynchronous Caching Example
+
+This example mirrors the synchronous one but uses the **`async_cached`** decorator and a class that inherits from `AsyncCacheable`, which automatically sets up an `aiocache`-based in-memory cache. The core logic remains the same, but the functions and decorators are all `async`.
+
+* **Key Function (`key_fn`)**: The key generation logic is identical to the synchronous example.
+* **Decorator**: The `@async_cached` decorator works just like its synchronous counterpart, but it's designed to work with `awaitable` functions and asynchronous cache adapters.
+
+```python
+import asyncio
+from cacheio.async_ import async_cached, AsyncCacheable
+
+# Define the class that uses asynchronous caching.
+# It inherits from `AsyncCacheable` for a default in-memory async cache.
+class AsyncUserService(AsyncCacheable):
+    
+    # The key function for our cache.
+    def _user_cache_key(self, user_id: int, request_id: str) -> str:
+        return f"user:{user_id}:{request_id}"
+
+    # The async_cached decorator, with a 60-second TTL.
+    @async_cached(key_fn=_user_cache_key, ttl=60)
+    async def fetch_user(self, user_id: int, request_id: str) -> dict:
+        """Simulates a slow, expensive asynchronous database call."""
+        print(f"Fetching user {user_id} from database asynchronously...")
+        await asyncio.sleep(2)  # Simulate a 2-second async delay
+        return {"id": user_id, "name": f"User_{user_id}", "request": request_id}
+
+# --- Usage ---
+async def main():
+    user_service = AsyncUserService()
+
+    # First call: The method runs and its result is cached.
+    print("First call:")
+    user_1 = await user_service.fetch_user(user_id=1, request_id="req-1")
+    print(f"Result: {user_1}\n")
+
+    # Second call (with same arguments): The cached result is returned instantly.
+    print("Second call (should be instant):")
+    user_2 = await user_service.fetch_user(user_id=1, request_id="req-1")
+    print(f"Result: {user_2}\n")
+
+    # Third call (with different arguments): The method runs again and the new result is cached.
+    print("Third call (with different request_id):")
+    user_3 = await user_service.fetch_user(user_id=1, request_id="req-2")
+    print(f"Result: {user_3}")
+
+if __name__ == "__main__":
     asyncio.run(main())
 ```
 
