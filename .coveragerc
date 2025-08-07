@@ -1,0 +1,7 @@
+[run]
+omit =
+    */__init__.py
+    cacheio/_constants.py
+    cacheio/_types.py
+    cacheio/protocols/*
+    tests/*
