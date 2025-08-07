@@ -1,0 +1,141 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Poetry
+        uses: abatilo/actions-poetry@v3
+        with:
+          poetry-version: '1.8.2'
+
+      - name: Validate pyproject.toml
+        run: poetry check
+
+      - name: Install development dependencies
+        run: poetry install --only dev
+
+      - name: Run Black
+        run: poetry run black --check --diff .
+
+      - name: Run Flake8
+        run: poetry run flake8 .
+
+      # - name: Run security checks (optional)
+      #   run: poetry run bandit -r cacheio
+
+  test:
+    needs: lint
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ ubuntu-latest, macos-latest, windows-latest ]
+        python-version: [ '3.10', '3.11', '3.12' ]
+        extras: [ '', 'sync', 'async', 'full' ]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install Poetry
+        uses: abatilo/actions-poetry@v3
+        with:
+          poetry-version: '1.8.2'
+
+      - name: Cache Poetry virtual environment
+        uses: actions/cache@v4
+        id: cache
+        with:
+          path: .venv
+          key: ${{ runner.os }}-${{ matrix.python-version }}-${{ matrix.extras }}-${{ hashFiles('**/poetry.lock') }}
+
+      - name: Install dependencies
+        if: steps.cache.outputs.cache-hit != 'true'
+        shell: bash  # Ensures Bash is used across OSes (esp. Windows)
+        run: |
+          if [ "${{ matrix.extras }}" = "" ]; then
+            poetry install --with dev
+          else
+            poetry install --with dev,${{ matrix.extras }}
+          fi
+
+      - name: Run Pytest
+        run: poetry run pytest --cov=cacheio --cov-report=xml --cov-fail-under=90
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage.xml
+          name: cacheio-coverage
+          fail_ci_if_error: true
+
+  deploy:
+    needs: test
+    if: github.event_name == 'push' &&
+        github.ref == 'refs/heads/main' &&
+        !contains(github.event.head_commit.message, 'chore(release):')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Poetry
+        uses: abatilo/actions-poetry@v3
+        with:
+          poetry-version: '1.8.2'
+
+      - name: Cache Poetry virtual environment
+        uses: actions/cache@v4
+        id: cache
+        with:
+          path: .venv
+          key: ${{ runner.os }}-${{ hashFiles('**/poetry.lock') }}
+
+      - name: Install dependencies
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: poetry install
+
+      - name: Verify package build and import
+        run: |
+          poetry build
+          pip install dist/*.whl
+          python -c "import cacheio"
+
+      - name: Publish to PyPI
+        env:
+          POETRY_PYPI_TOKEN_PYPI: ${{ secrets.PYPI_TOKEN }}
+        run: poetry publish

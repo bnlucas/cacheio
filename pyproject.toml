@@ -7,30 +7,37 @@ license = "MIT"
 readme = "README.md"
 homepage = "https://github.com/bnlucas/cacheio"
 repository = "https://github.com/bnlucas/cacheio"
-keywords = ["cache", "caching", "asyncio", "synchronous", "aiohttp", "cachelib"]
+keywords = [
+  "cache",
+  "caching",
+  "asyncio",
+  "synchronous",
+  "aiohttp",
+  "cachelib"
+]
 classifiers = [
-    "Development Status :: 3 - Alpha",
-    "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
-    "Operating System :: OS Independent",
-    "Programming Language :: Python",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
-    "Topic :: Software Development :: Libraries :: Python Modules",
-    "Topic :: System :: Caching"
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+  "Topic :: System :: Systems Administration"
 ]
 
 [tool.poetry.dependencies]
 python = "^3.10"
 
 [tool.poetry.group.dev.dependencies]
-pytest = "^8.4.1"
-pytest-cov = "^6.2.1"
-flake8 = "^7.3.0"
 black = "^25.1.0"
+flake8 = "^7.3.0"
 pre-commit = "^4.2.0"
-tox = "^4.28.4"
+pytest = "^8.4.1"
 pytest-asyncio = "^1.1.0"
+pytest-cov = "^6.2.1"
+tox = "^4.28.4"
 
 [tool.poetry.group.sync]
 optional = true
