@@ -54,7 +54,7 @@ To install the library with specific backends, use the optional dependency group
 Use `CacheFactory` to get a synchronous cache adapter. If `cachelib` is installed, this will provide an `Adapter` instance.
 
 ```python
-from cacheio.sync import CacheFactory
+from cacheio import CacheFactory
 
 # Get a simple in-memory cache adapter
 my_cache = CacheFactory.memory_cache()
@@ -72,7 +72,7 @@ Use `CacheFactory` to get a clean asynchronous adapter. If `aiocache` is install
 
 ```python
 import asyncio
-from cacheio.async_ import CacheFactory
+from cacheio import CacheFactory
 
 async def main():
     # Get an asynchronous cache adapter
@@ -102,7 +102,8 @@ This example demonstrates how to use the **`cached`** decorator for a synchronou
 
 ```python
 import time
-from cacheio.sync import cached, Cacheable
+from cacheio import cached
+from cacheio.mixins import Cacheable
 
 # Define the class that uses caching.
 # It inherits from `Cacheable` to get a default in-memory cache.
@@ -149,7 +150,8 @@ This example mirrors the synchronous one but uses the **`async_cached`** decorat
 
 ```python
 import asyncio
-from cacheio.async_ import async_cached, AsyncCacheable
+from cacheio import async_cached
+from cacheio.mixins import AsyncCacheable
 
 # Define the class that uses asynchronous caching.
 # It inherits from `AsyncCacheable` for a default in-memory async cache.
