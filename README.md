@@ -43,7 +43,7 @@ To install the library with specific backends, use the optional dependency group
 * **Full Installation:** Use the `full` group to install both synchronous and asynchronous backends.
     ```bash
     pip install "cacheio[full]"
-    ```
+```
 
 ---
 
@@ -97,7 +97,7 @@ if __name__ == "__main__":
 
 This example demonstrates how to use the **`cached`** decorator for a synchronous method. We define a class that inherits from `Cacheable`, which automatically sets up a `cachelib`-based in-memory cache.
 
-* **Key Function (`key_fn`)**: The `key_fn` is a crucial part of the decorator. It defines how a unique cache key is generated from the method's arguments.
+* **Key Function (`key_fn`)**: The `key_fn` is a crucial part of the decorator. For simple key generation, a `lambda` is a clean and efficient way to define it inline.
 * **Decorator**: The `@cached` decorator handles the rest, checking the cache for the key, calling the `fetch_user` method if the key isn't found, and storing the result.
 
 ```python
@@ -109,13 +109,8 @@ from cacheio.mixins import Cacheable
 # It inherits from `Cacheable` to get a default in-memory cache.
 class UserService(Cacheable):
     
-    # The key function for our cache.
-    # It generates a unique string from the method's arguments.
-    def _user_cache_key(self, user_id: int, request_id: str) -> str:
-        return f"user:{user_id}:{request_id}"
-
-    # The cached decorator, which uses the key function and a 60-second TTL.
-    @cached(key_fn=_user_cache_key, ttl=60)
+    # The cached decorator uses a lambda to generate a unique cache key.
+    @cached(key_fn=lambda self, user_id, **kwargs: f"user:{user_id}", ttl=60)
     def fetch_user(self, user_id: int, request_id: str) -> dict:
         """Simulates a slow, expensive database call."""
         print(f"Fetching user {user_id} from database...")
@@ -135,8 +130,8 @@ print("Second call (should be instant):")
 user_2 = user_service.fetch_user(user_id=1, request_id="req-1")
 print(f"Result: {user_2}\n")
 
-# Third call (with different arguments): The method runs again and the new result is cached.
-print("Third call (with different request_id):")
+# Third call (with different arguments): The cached result is still returned because the key only depends on `user_id`.
+print("Third call (with different request_id, should still be instant):")
 user_3 = user_service.fetch_user(user_id=1, request_id="req-2")
 print(f"Result: {user_3}")
 ```
@@ -145,7 +140,7 @@ print(f"Result: {user_3}")
 
 This example mirrors the synchronous one but uses the **`async_cached`** decorator and a class that inherits from `AsyncCacheable`, which automatically sets up an `aiocache`-based in-memory cache. The core logic remains the same, but the functions and decorators are all `async`.
 
-* **Key Function (`key_fn`)**: The key generation logic is identical to the synchronous example.
+* **Key Function (`key_fn`)**: The key generation logic is now a concise `lambda` function.
 * **Decorator**: The `@async_cached` decorator works just like its synchronous counterpart, but it's designed to work with `awaitable` functions and asynchronous cache adapters.
 
 ```python
@@ -157,12 +152,8 @@ from cacheio.mixins import AsyncCacheable
 # It inherits from `AsyncCacheable` for a default in-memory async cache.
 class AsyncUserService(AsyncCacheable):
     
-    # The key function for our cache.
-    def _user_cache_key(self, user_id: int, request_id: str) -> str:
-        return f"user:{user_id}:{request_id}"
-
-    # The async_cached decorator, with a 60-second TTL.
-    @async_cached(key_fn=_user_cache_key, ttl=60)
+    # The async_cached decorator uses a lambda to generate a unique cache key.
+    @async_cached(key_fn=lambda self, user_id, **kwargs: f"user:{user_id}", ttl=60)
     async def fetch_user(self, user_id: int, request_id: str) -> dict:
         """Simulates a slow, expensive asynchronous database call."""
         print(f"Fetching user {user_id} from database asynchronously...")
@@ -183,10 +174,10 @@ async def main():
     user_2 = await user_service.fetch_user(user_id=1, request_id="req-1")
     print(f"Result: {user_2}\n")
 
-    # Third call (with different arguments): The method runs again and the new result is cached.
-    print("Third call (with different request_id):")
-    user_3 = await user_service.fetch_user(user_id=1, request_id="req-2")
-    print(f"Result: {user_3}")
+# Third call (with different arguments): The cached result is still returned.
+print("Third call (with different request_id, should still be instant):")
+user_3 = await user_service.fetch_user(user_id=1, request_id="req-2")
+print(f"Result: {user_3}")
 
 if __name__ == "__main__":
     asyncio.run(main())
