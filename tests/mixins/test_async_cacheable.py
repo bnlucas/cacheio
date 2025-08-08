@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-import pytest
-
 from unittest.mock import patch, MagicMock, AsyncMock
 
-from cacheio import AsyncAdapter, async_cached
+import pytest
+
+from cacheio import AsyncAdapter, async_memoized
 from cacheio.mixins import AsyncCacheable
 
 
@@ -37,18 +37,19 @@ class TestAsyncCacheableIntegration:
         Tests that a decorated async method can successfully use the mixin's cache.
         """
         mock_adapter = MagicMock(spec=AsyncAdapter)
+        mock_adapter.get_or_set = AsyncMock()
         mock_factory.return_value = mock_adapter
 
         class MyClass(AsyncCacheable):
-            @async_cached(key_fn=lambda _, x: f"key_{x}")
+            @async_memoized(key_fn=lambda self, x: f"key_{x}")
             async def my_async_method(self, x):
                 return x * 2
 
         instance = MyClass()
         await instance.my_async_method(5)
 
-        mock_adapter.memoize.assert_awaited_once()
-        key, fn = mock_adapter.memoize.call_args[0]
+        mock_adapter.get_or_set.assert_awaited_once()
+        key, fn = mock_adapter.get_or_set.call_args[0]
 
         assert key == "key_5"
         assert await fn() == 10
@@ -93,7 +94,7 @@ class TestAsyncCacheableIntegration:
         """
         # A mock for the custom cache attribute.
         mock_custom_adapter = MagicMock(spec=AsyncAdapter)
-        mock_custom_adapter.memoize = AsyncMock()
+        mock_custom_adapter.get_or_set = AsyncMock()
 
         # The mixin will still try to create a default cache, but it won't be used.
         mock_default_factory.return_value = MagicMock(spec=AsyncAdapter)
@@ -104,17 +105,18 @@ class TestAsyncCacheableIntegration:
                 # Manually set the custom cache attribute.
                 self._my_other_cache = mock_custom_adapter
 
-            @async_cached(key_fn=lambda _, x: f"key_{x}", cache_attr="_my_other_cache")
+            @async_memoized(
+                key_fn=lambda self, x: f"key_{x}", cache_attr="_my_other_cache"
+            )
             async def my_async_method(self, x):
                 return x * 3
 
         instance = MyClass()
         await instance.my_async_method(10)
 
-        # Assert that the custom cache's memoize method was called, not the default one.
-        mock_custom_adapter.memoize.assert_awaited_once()
-        mock_default_factory.return_value.memoize.assert_not_awaited()
+        mock_custom_adapter.get_or_set.assert_awaited_once()
+        mock_default_factory.return_value.get_or_set.assert_not_awaited()
 
-        key, fn = mock_custom_adapter.memoize.call_args[0]
+        key, fn = mock_custom_adapter.get_or_set.call_args[0]
         assert key == "key_10"
         assert await fn() == 30

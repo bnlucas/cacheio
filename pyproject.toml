@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "cacheio"
-version = "0.1.0"
+version = "0.1.1"
 description = "A flexible and user-friendly Python caching library that provides a unified interface for both synchronous and asynchronous caching, with support for various backends."
 authors = ["Nathan Lucas <nlucas@bnlucas.com>"]
 license = "MIT"
