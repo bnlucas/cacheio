@@ -1,8 +1,5 @@
 # cacheio
-
-![Python Version](https://img.shields.io/badge/python-3.10%2B-blue)
-![License](https://img.shields.io/github/license/bnlucas/cacheio)
-![PyPI - Version](https://img.shields.io/pypi/v/cacheio)
+![Python Version](https://img.shields.io/badge/python-3.10%2B-blue) ![License](https://img.shields.io/github/license/bnlucas/cacheio) ![PyPI - Version](https://img.shields.io/pypi/v/cacheio)
 
 A flexible and user-friendly Python caching library that provides a **unified interface** for both synchronous and asynchronous caching, **wrapping and integrating** two well-established caching libraries: [`cachelib`](https://github.com/pallets/cachelib) for synchronous caching, and [`aiocache`](https://github.com/aio-libs/aiocache) for asynchronous caching.
 
