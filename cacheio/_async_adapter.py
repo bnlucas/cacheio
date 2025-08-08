@@ -1,16 +1,11 @@
 from __future__ import annotations
 
-import functools
-import inspect
+from typing import Awaitable, Callable, Dict, List, ParamSpec, TypeVar, TYPE_CHECKING
 
-from typing import Awaitable, Callable, Concatenate, ParamSpec, TypeVar, TYPE_CHECKING
-
-from ._types import T, R, AsyncMethod, AsyncDecorator
-
+from ._types import R
 
 if TYPE_CHECKING:
     from aiocache import BaseCache
-    from .protocols import AsyncAdapterProtocol
 
     TBackend = TypeVar("TBackend", bound=BaseCache)
 
@@ -38,30 +33,61 @@ class AsyncAdapter:
     async def has(
         self,
         key: str,
-    ) -> bool:
+    ) -> Awaitable[bool]:
         """
         Checks for the existence of a key in the cache.
+
+        This method is an efficient, atomic way to determine if a key exists
+        without retrieving its value.
 
         :param key: The key associated with the value.
         :type key: str
         :return: ``True`` if the key exists, ``False`` otherwise.
-        :rtype: bool
+        :rtype: Awaitable[bool]
         """
         return await self._backend.exists(key)
 
     async def get(
         self,
         key: str,
-    ) -> R | None:
+    ) -> Awaitable[R | None]:
         """
-        Retrieves a value from the asynchronous cache by its key.
+        Retrieves a value from the cache by its key.
 
         :param key: The key associated with the value.
         :type key: str
         :return: The cached value, or ``None`` if the key is not found.
-        :rtype: R | None
+        :rtype: Awaitable[R | None]
         """
         return await self._backend.get(key)
+
+    async def get_many(
+        self,
+        *keys: str,
+    ) -> Awaitable[List[R | None]]:
+        """
+        Retrieve multiple values for the given keys.
+
+        :param keys: Tuple of keys to retrieve.
+        :type keys: tuple[str, ...]
+        :return: List of values corresponding to keys; missing keys return ``None``.
+        :rtype: Awaitable[List[R | None]]
+        """
+        return await self._backend.multi_get(list(keys))
+
+    async def multi_get(
+        self,
+        *keys: str,
+    ) -> Awaitable[List[R | None]]:
+        """
+        Retrieve multiple values for the given keys.
+
+        :param keys: Tuple of keys to retrieve.
+        :type keys: tuple[str, ...]
+        :return: List of values corresponding to keys; missing keys return ``None``.
+        :rtype: Awaitable[List[R | None]]
+        """
+        return await self._backend.multi_get(list(keys))
 
     async def set(
         self,
@@ -71,7 +97,7 @@ class AsyncAdapter:
         ttl: int | None = None,
     ) -> None:
         """
-        Stores a value in the asynchronous cache with an optional time-to-live (TTL).
+        Stores a value in the cache with an optional time-to-live (TTL).
 
         :param key: The key to store the value under.
         :type key: str
@@ -79,12 +105,66 @@ class AsyncAdapter:
         :type value: Any
         :param ttl: The time-to-live for the cache entry in seconds.
         :type ttl: int | None
-        :return: An awaitable that returns nothing.
-        :rtype: Awaitable[None]
         """
-        return await self._backend.set(key, value, ttl=ttl)
+        await self._backend.set(key, value, ttl=ttl)
 
-    async def memoize(
+    async def set_many(
+        self,
+        mapping: Dict[str, R],
+        *,
+        ttl: int | None = None,
+    ) -> None:
+        """
+        Stores multiple key-value pairs with an optional TTL.
+
+        :param mapping: Dictionary of keys and values to set.
+        :type mapping: Dict[str, Any]
+        :param ttl: The time-to-live for the cache entries in seconds.
+        :type ttl: int | None
+        """
+        await self._backend.multi_set(mapping, ttl=ttl)
+
+    async def multi_set(
+        self,
+        mapping: Dict[str, R],
+        *,
+        ttl: int | None = None,
+    ) -> None:
+        """
+        Stores multiple key-value pairs with an optional TTL.
+
+        :param mapping: Dictionary of keys and values to set.
+        :type mapping: Dict[str, Any]
+        :param ttl: The time-to-live for the cache entries in seconds.
+        :type ttl: int | None
+        """
+        await self._backend.multi_set(mapping, ttl=ttl)
+
+    async def add(
+        self,
+        key: str,
+        value: R,
+        *,
+        ttl: int | None = None,
+    ) -> Awaitable[bool]:
+        """
+        Stores the value in the given key with TTL if specified.
+        Raises an error if the key already exists.
+
+        :param key: The key to store the value under.
+        :type key: str
+        :param value: The value to be cached.
+        :type value: Any
+        :param ttl: The time-to-live for the cache entry in seconds.
+            Due to memcached restrictions, use int for compatibility.
+            Redis and memory caches support float TTLs.
+        :type ttl: int | None
+        :return: True if the key was successfully inserted.
+        :rtype: Awaitable[bool]
+        """
+        return await self._backend.add(key, value, ttl=ttl)
+
+    async def get_or_set(
         self,
         key: str,
         fn: Callable[[], Awaitable[R]],
@@ -92,20 +172,16 @@ class AsyncAdapter:
         ttl: int | None = None,
     ) -> R | None:
         """
-        Executes an asynchronous callable and caches its result.
+        Retrieves a value by key or computes and caches it if not present.
 
-        If the key exists in the cache, the cached value is returned. Otherwise,
-        the callable ``fn`` is executed, its result is cached, and then returned.
-
-        :param key: The cache key for the result of the callable.
+        :param key: The key to retrieve or set.
         :type key: str
-        :param fn: The callable to execute if the key is not in the cache.
-                   It must be a no-argument callable that returns an awaitable.
+        :param fn: No-argument callable to compute the value if missing.
         :type fn: Callable[[], Awaitable[R]]
         :param ttl: The time-to-live for the cache entry in seconds.
         :type ttl: int | None
-        :return: The result of the callable or the cached value.
-        :rtype: R | None
+        :return: Cached or newly computed value.
+        :rtype: Awaitable[R | None]
         """
         if await self._backend.exists(key):
             return await self._backend.get(key)
@@ -118,142 +194,90 @@ class AsyncAdapter:
     async def delete(
         self,
         key: str,
-    ) -> bool:
+    ) -> Awaitable[bool]:
         """
-        Deletes a key from the asynchronous cache.
-
-        This method normalizes the backend's return value (0 or 1) to a boolean.
+        Deletes a key from the cache.
 
         :param key: The key to delete.
         :type key: str
-        :return: ``True`` if the key was deleted, ``False`` otherwise.
-        :rtype: bool
+        :rtype: Awaitable[bool]
         """
         return await self._backend.delete(key) == 1
 
+    async def delete_many(
+        self,
+        *keys: str,
+    ) -> None:
+        """
+        Deletes multiple keys from the cache.
+
+        :param keys: Tuple of keys to delete.
+        :type keys: tuple[str, ...]
+        """
+        for key in keys:
+            await self._backend.delete(key)
+
+    async def multi_delete(
+        self,
+        *keys: str,
+    ) -> None:
+        """
+        Deletes multiple keys from the cache.
+
+        :param keys: Tuple of keys to delete.
+        :type keys: tuple[str, ...]
+        """
+        for key in keys:
+            await self._backend.delete(key)
+
+    async def increment(
+        self,
+        key: str,
+        amount: int = 1,
+    ) -> Awaitable[int | None]:
+        """
+        Increments the integer value stored at the given key by the specified amount.
+
+        If the key does not exist, it is initialized to 0 before incrementing.
+
+        :param key: The key whose value to increment.
+        :type key: str
+        :param amount: The amount to increment by (default is 1).
+        :type amount: int
+        :return: The new value after incrementing.
+        :rtype: Awaitable[int | None]
+        """
+        return await self._backend.increment(key, amount)
+
+    async def decrement(
+        self,
+        key: str,
+        amount: int = 1,
+    ) -> Awaitable[int | None]:
+        """
+        Decrements the integer value stored at the given key by the specified amount.
+
+        If the key does not exist, it is initialized to 0 before decrementing.
+
+        :param key: The key whose value to decrement.
+        :type key: str
+        :param amount: The amount to decrement by (default is 1).
+        :type amount: int
+        :return: The new value after decrementing.
+        :rtype: Awaitable[int | None]
+        """
+        return await self._backend.increment(key, amount * -1)
+
     async def clear(
         self,
-    ) -> bool:
+    ) -> Awaitable[bool]:
         """
         Clears all items from the cache.
 
         :return: ``True`` if the cache was successfully cleared, ``False`` otherwise.
-        :rtype: bool
+        :rtype: Awaitable[bool]
         """
         return await self._backend.clear()
 
 
-async def invoke_cache_adapter(
-    self: T,
-    key_fn: Callable[Concatenate[T, P], str],
-    cache_attr: str,
-    fn: AsyncMethod[T, P, R],
-    args: tuple,
-    kwargs: dict,
-    *,
-    ttl: int | None = None,
-) -> R | None:
-    """
-    Invokes an asynchronous function and caches its result using a cache adapter.
-
-    This helper function contains the core logic for the :py:func:`async_cached`
-    decorator, handling the retrieval of the async cache adapter, key generation,
-    and memoization.
-
-    :param self: The instance of the class the decorated method belongs to.
-    :type self: T
-    :param cache_attr: The name of the attribute on ``self`` that holds the cache
-                       adapter.
-    :type cache_attr: str
-    :param key_fn: A function that generates a cache key from the decorated
-                   function's arguments.
-    :type key_fn: KeyCallable[P]
-    :param fn: The decorated async function to be executed.
-    :type fn: AsyncMethod[T, P, R]
-    :param args: The positional arguments passed to the decorated function.
-    :type args: P.args
-    :param kwargs: The keyword arguments passed to the decorated function.
-    :type kwargs: P.kwargs
-    :param ttl: The time-to-live for the cached item in seconds.
-    :type ttl: int | None
-    :return: The result of the async function or the cached value.
-    :rtype: R | None
-    """
-    if not hasattr(self, cache_attr):
-        raise AttributeError(
-            f"The provided cache attribute `{cache_attr}` does not exist."
-        )
-
-    adapter: AsyncAdapterProtocol = getattr(self, cache_attr)
-
-    async def result_fn() -> R | None:
-        return await fn(self, *args, **kwargs)
-
-    key = key_fn(self, *args, **kwargs)
-    return await adapter.memoize(key, result_fn, ttl=ttl)
-
-
-def async_cached(
-    key_fn: Callable[Concatenate[T, P], str],
-    *,
-    cache_attr: str = "_cache",
-    ttl: int | None = None,
-) -> AsyncDecorator[T, P, R]:
-    """
-    A decorator for memoizing an asynchronous function's result using an
-    asynchronous cache adapter.
-
-    The decorator generates a cache key using ``key_fn`` and delegates caching
-    logic to an asynchronous cache adapter found on the decorated object.
-
-    :param key_fn: A function that generates a cache key from the decorated
-                   function's arguments.
-    :type key_fn: KeyCallable[P]
-    :param cache_attr: The name of the attribute on ``self`` that holds the cache
-                       adapter.
-    :type cache_attr: str
-    :param ttl: The time-to-live for the cached item in seconds.
-    :type ttl: int | None
-    :return: The decorated async function (wrapper).
-    :rtype: AsyncMethod[T, P, R | None]
-    """
-
-    def decorator(
-        fn: AsyncMethod[T, P, R],
-    ) -> AsyncMethod[T, P, R | None]:
-        argspec = inspect.getfullargspec(fn)
-
-        if not argspec.args or argspec.args[0] != "self":
-            raise TypeError(
-                "The 'async_cached' decorator can only be used on methods of a class."
-            )
-
-        @functools.wraps(fn)
-        async def wrapper(
-            self: T,
-            *args: P.args,
-            **kwargs: P.kwargs,
-        ) -> R | None:
-            """
-            The wrapper function that executes the caching logic before
-            calling the original decorated function.
-            """
-            return await invoke_cache_adapter(
-                self,
-                key_fn,
-                cache_attr,
-                fn,
-                args,
-                kwargs,
-                ttl=ttl,
-            )
-
-        return wrapper
-
-    return decorator
-
-
-__all__ = (
-    "AsyncAdapter",
-    "async_cached",
-)
+__all__ = ("AsyncAdapter",)

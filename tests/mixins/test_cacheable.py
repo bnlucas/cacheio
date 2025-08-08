@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from unittest.mock import patch, MagicMock
 
-from cacheio import Adapter, cached
+from cacheio import Adapter, memoized
 from cacheio.mixins import Cacheable
 
 
@@ -31,18 +31,19 @@ class TestCacheableIntegration:
     def test_decorated_method_uses_mixin_cache(self, mock_factory):
         """Tests that a decorated method can successfully use the mixin's cache."""
         mock_adapter = MagicMock(spec=Adapter)
+        mock_adapter.get_or_set = MagicMock()
         mock_factory.return_value = mock_adapter
 
         class MyClass(Cacheable):
-            @cached(key_fn=lambda _, x: f"key_{x}")
+            @memoized(key_fn=lambda self, x: f"key_{x}")
             def my_method(self, x):
                 return x * 2
 
         instance = MyClass()
         instance.my_method(5)
 
-        mock_adapter.memoize.assert_called_once()
-        key, fn = mock_adapter.memoize.call_args[0]
+        mock_adapter.get_or_set.assert_called_once()
+        key, fn = mock_adapter.get_or_set.call_args[0]
 
         assert key == "key_5"
         assert fn() == 10
@@ -85,7 +86,7 @@ class TestCacheableIntegration:
         """
         # A mock for the custom cache attribute.
         mock_custom_adapter = MagicMock(spec=Adapter)
-        mock_custom_adapter.memoize = MagicMock()
+        mock_custom_adapter.get_or_set = MagicMock()
 
         # The mixin will still try to create a default cache, but it won't be used.
         mock_default_factory.return_value = MagicMock(spec=Adapter)
@@ -96,17 +97,16 @@ class TestCacheableIntegration:
                 # Manually set the custom cache attribute.
                 self._my_other_cache = mock_custom_adapter
 
-            @cached(key_fn=lambda _, x: f"key_{x}", cache_attr="_my_other_cache")
+            @memoized(key_fn=lambda self, x: f"key_{x}", cache_attr="_my_other_cache")
             def my_method(self, x):
                 return x * 3
 
         instance = MyClass()
         instance.my_method(10)
 
-        # Assert that the custom cache's memoize method was called, not the default one.
-        mock_custom_adapter.memoize.assert_called_once()
-        mock_default_factory.return_value.memoize.assert_not_called()
+        mock_custom_adapter.get_or_set.assert_called_once()
+        mock_default_factory.return_value.get_or_set.assert_not_called()
 
-        key, fn = mock_custom_adapter.memoize.call_args[0]
+        key, fn = mock_custom_adapter.get_or_set.call_args[0]
         assert key == "key_10"
         assert fn() == 30

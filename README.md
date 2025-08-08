@@ -1,26 +1,31 @@
 # cacheio
 
-![Python Version](https://img.shields.io/badge/python-3.10%2B-blue)
-![License](https://img.shields.io/github/license/bnlucas/cacheio)
-![PyPI - Version](https://img.shields.io/pypi/v/cacheio)
+![Python Version](https://img.shields.io/badge/python-3.10%2B-blue) ![License](https://img.shields.io/github/license/bnlucas/cacheio) ![PyPI - Version](https://img.shields.io/pypi/v/cacheio)
 
-A flexible and user-friendly Python caching library that provides a unified interface for both synchronous and asynchronous caching, with support for various backends.
+A flexible and user-friendly Python caching interface that provides a unified API for both synchronous and asynchronous caching, by wrapping and integrating two well-established caching libraries:
+
+`cacheio` simplifies caching in Python applications by providing a consistent API for both sync and async use cases — no need to learn two different interfaces or manage separate dependencies manually. It intelligently loads only the backend dependencies you need.
 
 ---
 
 ## Overview 🚀
 
-`cacheio` is designed to simplify caching in Python applications. It provides a simple, consistent API for interacting with different caching backends, whether your code is synchronous or asynchronous. The library intelligently loads dependencies based on your needs, so you only install what you use.
+`cacheio` is not just another caching library. It is a **unified abstraction layer** that seamlessly bridges the gap between synchronous and asynchronous caching in Python by integrating:
+
+- **[`cachelib`](https://github.com/pallets/cachelib)** for reliable, performant synchronous caching backends, including in-memory caches.
+- **[`aiocache`](https://github.com/aio-libs/aiocache)** for flexible, feature-rich asynchronous caching, with support for multiple backends like Redis and Memcached.
+
+This design means you can switch between sync and async caching or use both in the same codebase with a **shared, consistent API**.
 
 ---
 
 ## Installation
 
-You can install `cacheio` with pip. The library uses **optional dependency groups** to manage its backends.
+Install `cacheio` via pip. The library uses **optional dependency groups** to help you install only what you need.
 
 ### Basic Installation
 
-To install the core library without any caching backends, run:
+Install the core package without any caching backends:
 
 ```bash
 pip install cacheio
@@ -28,22 +33,62 @@ pip install cacheio
 
 ### Installing with Backends
 
-To install the library with specific backends, use the optional dependency groups:
+Choose the optional group(s) based on your use case:
 
-* **Synchronous Caching:** Use the `sync` group for `cachelib`-based backends.
+* **Synchronous Caching:** Use the `sync` extra to install `cachelib` and synchronous cache support.
+
     ```bash
     pip install "cacheio[sync]"
     ```
 
-* **Asynchronous Caching:** Use the `async` group for `aiocache`-based backends.
+* **Asynchronous Caching:** Use the `async` extra to install `aiocache` and asynchronous cache support.
+
     ```bash
     pip install "cacheio[async]"
     ```
 
-* **Full Installation:** Use the `full` group to install both synchronous and asynchronous backends.
+* **Full Installation:** Install both synchronous and asynchronous backends together.
+
     ```bash
     pip install "cacheio[full]"
     ```
+
+---
+
+## Configuration
+
+`cacheio` exposes a global configuration object, allowing you to customize default settings like the time-to-live (TTL) for cached entries and cache size thresholds.
+
+You can modify the configuration by importing `config` directly or by using the `configure` function which accepts a callable that modifies the global config.
+
+### Using the Global `config` Object
+
+You can read or update configuration parameters directly:
+
+```python
+from cacheio import config
+
+print(config.default_ttl)  # Default TTL in seconds (e.g., 300)
+
+# Update the default TTL to 600 seconds (10 minutes)
+config.default_ttl = 600
+```
+
+### Using the `configure` Helper
+
+Use the `configure` function to update configuration settings in a safe and explicit manner:
+
+```python
+from cacheio import configure
+
+def update_config(cfg):
+    cfg.default_ttl = 600
+    cfg.default_threshold = 1000
+
+configure(update_config)
+```
+
+This pattern can be handy for centralized configuration setup in your application.
 
 ---
 
@@ -51,41 +96,42 @@ To install the library with specific backends, use the optional dependency group
 
 ### Synchronous Caching
 
-Use `CacheFactory` to get a synchronous cache adapter. If `cachelib` is installed, this will provide an `Adapter` instance.
+Use `CacheFactory.memory_cache()` to get a synchronous cache adapter backed by `cachelib.SimpleCache`. The adapter respects your configured TTL and cache size threshold by default.
 
 ```python
 from cacheio import CacheFactory
 
-# Get a simple in-memory cache adapter
+# Create a synchronous in-memory cache adapter
 my_cache = CacheFactory.memory_cache()
 
-# Use the cache
+# Set a value with TTL 300 seconds (or your configured TTL)
 my_cache.set("my_key", "my_value", ttl=300)
-value = my_cache.get("my_key")
 
+# Retrieve the cached value
+value = my_cache.get("my_key")
 print(f"Retrieved value: {value}")
 ```
 
 ### Asynchronous Caching
 
-Use `CacheFactory` to get a clean asynchronous adapter. If `aiocache` is installed, this will provide an `AsyncAdapter` instance.
+Use `CacheFactory.async_memory_cache()` to get an asynchronous cache adapter backed by `aiocache.Cache`, honoring the TTL from the config.
 
 ```python
 import asyncio
 from cacheio import CacheFactory
 
 async def main():
-    # Get an asynchronous cache adapter
+    # Create an asynchronous in-memory cache adapter
     my_async_cache = CacheFactory.async_memory_cache()
 
-    # Use the cache asynchronously
+    # Set a value with TTL 300 seconds asynchronously
     await my_async_cache.set("my_async_key", "my_async_value", ttl=300)
-    async_value = await my_async_cache.get("my_async_key")
 
+    # Retrieve the cached value asynchronously
+    async_value = await my_async_cache.get("my_async_key")
     print(f"Retrieved async value: {async_value}")
 
 if __name__ == "__main__":
-    # Ensure you have a running event loop
     asyncio.run(main())
 ```
 
@@ -93,91 +139,67 @@ if __name__ == "__main__":
 
 ## Usage Examples
 
-### 1. Synchronous Caching Example
+### 1. Synchronous Caching with the `cached` Decorator
 
-This example demonstrates how to use the **`cached`** decorator for a synchronous method. We define a class that inherits from `Cacheable`, which automatically sets up a `cachelib`-based in-memory cache.
-
-* **Key Function (`key_fn`)**: The `key_fn` is a crucial part of the decorator. For simple key generation, a `lambda` is a clean and efficient way to define it inline.
-* **Decorator**: The `@cached` decorator handles the rest, checking the cache for the key, calling the `fetch_user` method if the key isn't found, and storing the result.
+`cacheio` provides decorators like `@cached` to simplify memoization of synchronous methods. In this example, we define a class inheriting from `Cacheable` that sets up a default `cachelib`-based in-memory cache.
 
 ```python
 import time
 from cacheio import cached
 from cacheio.mixins import Cacheable
 
-# Define the class that uses caching.
-# It inherits from `Cacheable` to get a default in-memory cache.
 class UserService(Cacheable):
-    
-    # The cached decorator uses a lambda to generate a unique cache key.
     @cached(key_fn=lambda self, user_id, **kwargs: f"user:{user_id}", ttl=60)
     def fetch_user(self, user_id: int, request_id: str) -> dict:
-        """Simulates a slow, expensive database call."""
         print(f"Fetching user {user_id} from database...")
-        time.sleep(2)  # Simulate a 2-second network delay
+        time.sleep(2)  # Simulate delay
         return {"id": user_id, "name": f"User_{user_id}", "request": request_id}
 
-# --- Usage ---
 user_service = UserService()
 
-# First call: The method runs and its result is cached.
 print("First call:")
 user_1 = user_service.fetch_user(user_id=1, request_id="req-1")
 print(f"Result: {user_1}\n")
 
-# Second call (with same arguments): The cached result is returned instantly.
-print("Second call (should be instant):")
+print("Second call (cached):")
 user_2 = user_service.fetch_user(user_id=1, request_id="req-1")
 print(f"Result: {user_2}\n")
 
-# Third call (with different arguments): The cached result is still returned because the key only depends on `user_id`.
-print("Third call (with different request_id, should still be instant):")
+print("Third call (different request_id, still cached):")
 user_3 = user_service.fetch_user(user_id=1, request_id="req-2")
 print(f"Result: {user_3}")
 ```
 
-### 2. Asynchronous Caching Example
+### 2. Asynchronous Caching with the `async_cached` Decorator
 
-This example mirrors the synchronous one but uses the **`async_cached`** decorator and a class that inherits from `AsyncCacheable`, which automatically sets up an `aiocache`-based in-memory cache. The core logic remains the same, but the functions and decorators are all `async`.
-
-* **Key Function (`key_fn`)**: The key generation logic is now a concise `lambda` function.
-* **Decorator**: The `@async_cached` decorator works just like its synchronous counterpart, but it's designed to work with `awaitable` functions and asynchronous cache adapters.
+Similarly, `@async_cached` works for async methods and uses the `AsyncCacheable` mixin, which sets up an `aiocache` in-memory backend.
 
 ```python
 import asyncio
 from cacheio import async_cached
 from cacheio.mixins import AsyncCacheable
 
-# Define the class that uses asynchronous caching.
-# It inherits from `AsyncCacheable` for a default in-memory async cache.
 class AsyncUserService(AsyncCacheable):
-    
-    # The async_cached decorator uses a lambda to generate a unique cache key.
     @async_cached(key_fn=lambda self, user_id, **kwargs: f"user:{user_id}", ttl=60)
     async def fetch_user(self, user_id: int, request_id: str) -> dict:
-        """Simulates a slow, expensive asynchronous database call."""
-        print(f"Fetching user {user_id} from database asynchronously...")
-        await asyncio.sleep(2)  # Simulate a 2-second async delay
+        print(f"Fetching user {user_id} asynchronously...")
+        await asyncio.sleep(2)  # Simulate async delay
         return {"id": user_id, "name": f"User_{user_id}", "request": request_id}
 
-# --- Usage ---
 async def main():
     user_service = AsyncUserService()
 
-    # First call: The method runs and its result is cached.
     print("First call:")
     user_1 = await user_service.fetch_user(user_id=1, request_id="req-1")
     print(f"Result: {user_1}\n")
 
-    # Second call (with same arguments): The cached result is returned instantly.
-    print("Second call (should be instant):")
+    print("Second call (cached):")
     user_2 = await user_service.fetch_user(user_id=1, request_id="req-1")
     print(f"Result: {user_2}\n")
 
-# Third call (with different arguments): The cached result is still returned.
-print("Third call (with different request_id, should still be instant):")
-user_3 = await user_service.fetch_user(user_id=1, request_id="req-2")
-print(f"Result: {user_3}")
+    print("Third call (different request_id, still cached):")
+    user_3 = await user_service.fetch_user(user_id=1, request_id="req-2")
+    print(f"Result: {user_3}")
 
 if __name__ == "__main__":
     asyncio.run(main())
@@ -185,10 +207,23 @@ if __name__ == "__main__":
 
 ---
 
+## Why `cacheio`?
+
+- **Unified API** for sync and async caching.
+- **Seamless backend integration** with two proven libraries: [`cachelib`](https://github.com/pallets/cachelib) and [`aiocache`](https://github.com/aio-libs/aiocache).
+- **Minimal dependencies** — install only what you need.
+- **Simple decorators** and mixins to add caching effortlessly.
+- **Configurable defaults** with a global config object and helper.
+- **Flexible TTL and backend options** via factory methods.
+
+---
+
 ## Contributing
 
-We welcome contributions! Please feel free to open an issue or submit a pull request on our [GitHub repository](https://github.com/bnlucas/cacheio).
+Contributions are welcome! Open an issue or submit a pull request on the [GitHub repository](https://github.com/bnlucas/cacheio).
+
+---
 
 ## License
 
-`cacheio` is distributed under the terms of the MIT license. See the [LICENSE](https://github.com/bnlucas/cacheio/blob/main/LICENSE) file for details.
+`cacheio` is licensed under the MIT License. See [LICENSE](https://github.com/bnlucas/cacheio/blob/main/LICENSE) for details.
