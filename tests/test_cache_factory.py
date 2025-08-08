@@ -6,7 +6,7 @@ import pytest
 
 from cacheio import config, CacheFactory, Adapter, AsyncAdapter
 
-CACHE = "cacheio._cache_factory.Cache"
+CACHE = "cacheio._cache_factory.SyncCache"
 ASYNC_CACHE = "cacheio._cache_factory.AsyncCache"
 
 
@@ -56,7 +56,7 @@ class TestCacheFactory:
         """
         Tests that memory_cache raises ImportError if cachelib is missing.
         """
-        with patch(CACHE, None):
+        with patch("cacheio._cache_factory.CACHELIB_LOADED", False), patch(CACHE, None):
             with pytest.raises(
                 ImportError, match="The 'cachelib' library is not installed."
             ):
@@ -115,7 +115,9 @@ class TestCacheFactory:
         """
         Tests that async_memory_cache raises ImportError if aiocache is missing.
         """
-        with patch(ASYNC_CACHE, None):
+        with patch("cacheio._cache_factory.AIOCACHE_LOADED", False), patch(
+            ASYNC_CACHE, None
+        ):
             with pytest.raises(
                 ImportError, match="The 'aiocache' library is not installed."
             ):
