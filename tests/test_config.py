@@ -6,6 +6,16 @@ from cacheio import config, configure
 from cacheio._config import Config
 
 
+@pytest.fixture(autouse=True)
+def reset_config_defaults():
+    # Reset config to default values before and after each test
+    original_ttl = config.default_ttl
+    original_threshold = config.default_threshold
+    yield
+    config.default_ttl = original_ttl
+    config.default_threshold = original_threshold
+
+
 class TestConfig:
     """Test suite for the Config class and the global config object."""
 
@@ -22,9 +32,6 @@ class TestConfig:
         Tests that the configure function can successfully modify multiple
         settings on the global config object.
         """
-        # Save original values to restore after test
-        original_ttl = config.default_ttl
-        original_threshold = config.default_threshold
 
         def set_custom_values(cfg: Config):
             cfg.default_ttl = 600
@@ -34,10 +41,6 @@ class TestConfig:
 
         assert config.default_ttl == 600
         assert config.default_threshold == 1000
-
-        # Restore original values
-        config.default_ttl = original_ttl
-        config.default_threshold = original_threshold
 
     def test_configure_raises_typeerror_with_non_callable(self):
         """
@@ -53,9 +56,6 @@ class TestConfig:
         Tests that the configure function can successfully be used to apply a new
         Config object.
         """
-        original_ttl = config.default_ttl
-        original_threshold = config.default_threshold
-
         new_config = Config()
         new_config.default_ttl = 900
         new_config.default_threshold = 1500
@@ -69,17 +69,11 @@ class TestConfig:
         assert config.default_ttl == 900
         assert config.default_threshold == 1500
 
-        # Restore original values
-        config.default_ttl = original_ttl
-        config.default_threshold = original_threshold
-
     def test_configure_modifies_a_single_config_value(self):
         """
         Tests that the configure function can successfully modify a single
         setting on the global config object without affecting others.
         """
-        original_ttl = config.default_ttl
-        original_threshold = config.default_threshold
 
         def set_custom_ttl(cfg: Config):
             cfg.default_ttl = 999
@@ -87,8 +81,33 @@ class TestConfig:
         configure(set_custom_ttl)
 
         assert config.default_ttl == 999
-        assert config.default_threshold == original_threshold
+        assert config.default_threshold == 500
 
-        # Restore original values
-        config.default_ttl = original_ttl
-        config.default_threshold = original_threshold
+    def test_get_returns_override_value_if_provided(self):
+        """
+        Tests that Config.get returns the override value if it is provided,
+        ignoring the stored attribute value.
+        """
+        # Ensure default values
+        config.default_ttl = 300
+
+        # Override takes precedence
+        assert config.get("default_ttl", override=123) == 123
+
+    def test_get_returns_attribute_value_if_no_override(self):
+        """
+        Tests that Config.get returns the stored attribute value if no override is
+        provided.
+        """
+        config.default_threshold = 999
+        assert config.get("default_threshold") == 999
+
+    def test_get_raises_attribute_error_for_unknown_attr(self):
+        """
+        Tests that Config.get raises AttributeError when an unknown attribute is
+        requested.
+        """
+        with pytest.raises(
+            AttributeError, match="Unknown configuration attribute: 'unknown'"
+        ):
+            config.get("unknown")

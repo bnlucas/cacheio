@@ -8,7 +8,7 @@ def test_cachelib_import_failure():
 
     with patch.dict("sys.modules", {"cachelib": None}):
         reloaded_module = importlib.reload(importlib.import_module(module_to_test))
-        assert reloaded_module.Cache is None
+        assert reloaded_module.SyncCache is None
 
 
 def test_aiocache_import_failure():
