@@ -13,33 +13,51 @@ A flexible and user-friendly Python caching utility that provides a **unified in
 
 ---
 
-## Installation
+## Supported Backends
 
-You can install `cacheio` via pip. It supports optional dependency groups for backend support.
+`cacheio` supports multiple caching backends, providing both synchronous and asynchronous caching through well-established libraries:
 
-### Basic Installation
+### Synchronous Backends (via `cachelib`)
 
-Install core library without caching backends:
+- **In-Memory Cache**  
+  Backed by [`cachelib.SimpleCache`](https://github.com/pallets/cachelib)  
+  Created with: `CacheFactory.memory_cache()`  
+  Suitable for lightweight, local caching with configurable TTL and item thresholds.
 
-```bash
-pip install cacheio
-```
+- **Redis Cache**  
+  Backed by [`cachelib.RedisCache`](https://github.com/pallets/cachelib)  
+  Created with: `CacheFactory.redis_cache(host=..., port=..., ...)`  
+  Suitable for distributed caching with Redis, supporting connection parameters, TTL, and key namespaces.
 
-### Installing with Backends
+> **Note:** The synchronous backends require installing the `[sync]` extras:  
+> ```bash
+> pip install "cacheio[sync]"
+> ```
 
-- **Synchronous caching (cachelib-based):**
+---
 
-```bash
-pip install "cacheio[sync]"
-```
+### Asynchronous Backends (via `aiocache`)
 
-- **Asynchronous caching (aiocache-based):**
+- **In-Memory Async Cache**  
+  Backed by [`aiocache.Cache`](https://github.com/aio-libs/aiocache) with the `MEMORY` backend  
+  Created with: `CacheFactory.async_memory_cache()`  
+  Useful for async applications needing lightweight local caching.
 
-```bash
-pip install "cacheio[async]"
-```
+- **Redis Async Cache**  
+  Backed by [`aiocache.RedisCache`](https://github.com/aio-libs/aiocache)  
+  Created with: `CacheFactory.async_redis_cache(host=..., port=..., ...)`  
+  Supports Redis with async operations, configurable connection options, TTL, and dynamic namespace prefixes (including callables).
 
-- **Full installation (both sync and async):**
+> **Note:** The asynchronous backends require installing the `[async]` extras:  
+> ```bash
+> pip install "cacheio[async]"
+> ```
+
+---
+
+### Full Installation
+
+For both synchronous and asynchronous caching support:
 
 ```bash
 pip install "cacheio[full]"
